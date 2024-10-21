@@ -40,12 +40,12 @@ export default function Home() {
           const maxWidth = canvas.width * 0.8;
           const lineHeight = fontSize * 1.5;
           const words = element.innerText.split(' ');
-          let lines = [];
+          const lines = [];
           let currentLine = words[0];
 
           for (let i = 1; i < words.length; i++) {
-            let testLine = currentLine + ' ' + words[i];
-            let metrics = ctx.measureText(testLine);
+            const testLine = currentLine + ' ' + words[i];
+            const metrics = ctx.measureText(testLine);
             if (metrics.width > maxWidth) {
               lines.push(currentLine);
               currentLine = words[i];
@@ -71,7 +71,6 @@ export default function Home() {
     if (isProcessing || !inputText) return;
     setIsProcessing(true);
 
-    // Start recording
     chunksRef.current = [];
     const stream = canvasRef.current?.captureStream(30);
     if (stream) {
@@ -100,7 +99,6 @@ export default function Home() {
       
       mediaRecorderRef.current.start();
 
-      // Start typing
       if (elementRef.current) {
         new TypeIt(elementRef.current, {
           strings: inputText,
@@ -108,7 +106,7 @@ export default function Home() {
           afterComplete: () => {
             setTimeout(() => {
               mediaRecorderRef.current?.stop();
-            }, 1000); // Wait 1 second after typing before stopping
+            }, 1000);
           }
         }).go();
       }
