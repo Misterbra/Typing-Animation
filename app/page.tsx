@@ -1,101 +1,143 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState, useRef, useEffect } from 'react';
+import TypeIt from 'typeit';
+import styles from './Home.module.css';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [inputText, setInputText] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const elementRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+  useEffect(() => {
+    const handleResize = () => {
+      if (canvasRef.current) {
+        canvasRef.current.width = window.innerWidth;
+        canvasRef.current.height = window.innerHeight;
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize();
+
+    const renderCanvas = () => {
+      const canvas = canvasRef.current;
+      const element = elementRef.current;
+      if (canvas && element) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#ffffff';
+          const fontSize = Math.min(36, Math.max(18, Math.floor(canvas.width / 20)));
+          ctx.font = `bold ${fontSize}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          
+          const maxWidth = canvas.width * 0.8;
+          const lineHeight = fontSize * 1.5;
+          const words = element.innerText.split(' ');
+          let lines = [];
+          let currentLine = words[0];
+
+          for (let i = 1; i < words.length; i++) {
+            let testLine = currentLine + ' ' + words[i];
+            let metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth) {
+              lines.push(currentLine);
+              currentLine = words[i];
+            } else {
+              currentLine = testLine;
+            }
+          }
+          lines.push(currentLine);
+
+          lines.forEach((line, index) => {
+            ctx.fillText(line, canvas.width / 2, canvas.height / 2 + (index - (lines.length - 1) / 2) * lineHeight);
+          });
+        }
+      }
+      requestAnimationFrame(renderCanvas);
+    };
+    renderCanvas();
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const startProcessing = () => {
+    if (isProcessing || !inputText) return;
+    setIsProcessing(true);
+
+    // Start recording
+    chunksRef.current = [];
+    const stream = canvasRef.current?.captureStream(30);
+    if (stream) {
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=h264'
+      });
+      
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        chunksRef.current.push(e.data);
+      };
+      
+      mediaRecorderRef.current.onstop = async () => {
+        const webmBlob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const response = await fetch(URL.createObjectURL(webmBlob));
+        const arrayBuffer = await response.arrayBuffer();
+        const mp4Blob = new Blob([arrayBuffer], { type: 'video/mp4' });
+        
+        const url = URL.createObjectURL(mp4Blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'typing-video.mp4';
+        a.click();
+        URL.revokeObjectURL(url);
+        setIsProcessing(false);
+      };
+      
+      mediaRecorderRef.current.start();
+
+      // Start typing
+      if (elementRef.current) {
+        new TypeIt(elementRef.current, {
+          strings: inputText,
+          speed: 80,
+          afterComplete: () => {
+            setTimeout(() => {
+              mediaRecorderRef.current?.stop();
+            }, 1000); // Wait 1 second after typing before stopping
+          }
+        }).go();
+      }
+    }
+  };
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.typingArea}>
+        <div ref={elementRef}></div>
+        <canvas ref={canvasRef} style={{display: 'none'}}></canvas>
+      </div>
+      <div className={styles.controls}>
+        <input
+          type="text"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Type your story..."
+          className={styles.input}
+          disabled={isProcessing}
+        />
+        <button 
+          onClick={startProcessing} 
+          className={styles.button}
+          disabled={isProcessing}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {isProcessing ? '✨ Processing...' : '✨ Create Video'}
+        </button>
+      </div>
     </div>
   );
 }
